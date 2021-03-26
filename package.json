@@ -1,0 +1,26 @@
+{
+  "name": "chartjs-plugin-dragsegment",
+  "version": "0.0.1",
+  "description": "Draggable segments for Line charts created by Chart.js",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "rollup -c"
+  },
+  "keywords": [
+    "chartjs",
+    "plugin",
+    "drag",
+    "draggable",
+    "segment"
+  ],
+  "author": "Mihail Terenti <maikttt@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "d3-drag": "^2.0.0",
+    "d3-selection": "^2.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^11.2.0",
+    "rollup": "^2.42.4"
+  }
+}
