@@ -26,7 +26,8 @@ function eventsQueueVerticalDir() {
 
 function moveElement(chartInstance, datasetIndex, elementIndex) {
   const element = chartInstance.getDatasetMeta(datasetIndex).data[elementIndex];
-  const scaleName = chartInstance.config.type === 'radar' ? '_scale' : '_yScale';
+  // const scaleName = chartInstance.config.type === 'radar' ? '_scale' : '_yScale';
+  const scaleName = '_yScale'; // chartInstance is allways type 'line'
   const chartScale = chartInstance.scales[ element[scaleName].id ];
   const mouseStep = eventsQueueVerticalDir();
 
@@ -36,13 +37,20 @@ function moveElement(chartInstance, datasetIndex, elementIndex) {
     chartScale.getPixelForValue(0) - mouseStep
   );
 
-  // throw new Error("Stop herer")
-  // WARNING:
-  // const d = chartInstance.data.datasets[datasetIndex];
-  // ... modify d ...
-  // chartInstance.data.datasets[datasetIndex] = d;
-  // doesn't work. Should check why
-  chartInstance.data.datasets[datasetIndex].data[elementIndex].y += chartStep;
+  return chartInstance.data.datasets[datasetIndex].data[elementIndex].y + chartStep;
+}
+
+function calcData(chartInstance, datasetSegments) {
+  const data = {};
+  datasetSegments.forEach((segments, dsi) => {
+    const d = {};
+    segments.forEach(([pi, qi]) => {
+      d[pi] = moveElement(chartInstance, dsi, pi);
+      d[qi] = moveElement(chartInstance, dsi, qi);
+    });
+    data[dsi] = d;
+  });
+  return data;
 }
 
 function dragSegmentStart(chartInstance) {
@@ -64,17 +72,29 @@ function dragSegmentStart(chartInstance) {
   }
 }
 
-function dragSegmentDrag(chartInstance) {
+function dragSegmentDrag(chartInstance, callback) {
   return (event) => {
     eventInQueue(event);
     if (datasetSegments.length) {
-      datasetSegments.map((segments, dsi) => {
-        segments.map(([pi, qi]) => {
-          moveElement(chartInstance, dsi, pi);
-          moveElement(chartInstance, dsi, qi);
+      let data = calcData(chartInstance, datasetSegments);
+      let update = true;
+
+      if (typeof callback == 'function') {
+        update = callback(chartInstance, data);
+        if (update === undefined) {
+          update = true;
+        }
+      }
+
+      if (update) {
+        Object.keys(data).forEach((dsi) => {
+          const segments = data[dsi];
+          Object.keys(segments).forEach((i) => {
+            chartInstance.data.datasets[dsi].data[i].y = segments[i];
+          })
         });
-      });
-      chartInstance.update(0);
+        chartInstance.update(0);
+      }
     }
   }
 }
@@ -89,11 +109,11 @@ function dragSegmentEnd(chartInstance) {
 const ChartJSdragSegment = {
   id: 'dragSegment',
   afterInit(chartInstance) {
-    if (chartInstance.options.dragSegment) {
+    if (chartInstance.config.type == 'line' && chartInstance.options.dragSegment) {
       select(chartInstance.chart.canvas).call(
         drag().container(chartInstance.chart.canvas)
           .on('start', dragSegmentStart(chartInstance))
-          .on('drag', dragSegmentDrag(chartInstance))
+          .on('drag', dragSegmentDrag(chartInstance, chartInstance.options.dragSegment.onDrag))
           .on('end', dragSegmentEnd(chartInstance))
       );
     }

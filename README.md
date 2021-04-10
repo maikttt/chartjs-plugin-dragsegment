@@ -51,3 +51,23 @@ const chartConfig = {
 
 new Chart(ctx, chartConfig);
 ```
+
+If `dragSegment` is `Object` it contain plugin options. Now, as option can be passed option `onDrag` - function witch will be called before segments drag. Dragging can be canceled if `onDrag` return `false`.
+
+```js
+new Chart(ctx, {
+  type: 'line',
+  options: {
+    // ...
+    dragSegment: {
+      onDrag(chart, points) {
+        if (Math.random() < 0.5) {
+          return false;
+        }
+        return true;
+      }
+    }
+    // ...
+  }
+);
+```
