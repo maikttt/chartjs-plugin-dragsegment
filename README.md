@@ -4,9 +4,9 @@ A plugin for Chart.js
 
 Add ability to drag segments (line chartsjs).
 
-![Drag segments plugin animation](http://188.138.207.175/chartjs/voltage.gif)
+![Drag segments plugin animation](https://i.ibb.co/ZXTpkcc/687474703a2f2f3138382e3133382e3230372e3137352f63686172746a732f766f6c746167652e676966.gif)
 
-**[Demo](http://188.138.207.175/chartjs/)**
+**[Demo](https://codepen.io/maikttt/pen/jOVvMNY)**
 
 ## Installation
 
@@ -52,7 +52,7 @@ const chartConfig = {
 new Chart(ctx, chartConfig);
 ```
 
-If `dragSegment` is `Object` it contain plugin options. Now, as option can be passed option `onDrag` - function witch will be called before segments drag. Dragging can be canceled if `onDrag` return `false`.
+If `dragSegment` is `Object` it contain plugin options.
 
 ```js
 new Chart(ctx, {
@@ -60,6 +60,24 @@ new Chart(ctx, {
   options: {
     // ...
     dragSegment: {
+      // allow to drag segments verticaly (default: true)
+      vertical: true,
+
+      // allow to drag segments horizontaly (default: false)
+      horizontal: false,
+
+      // onDrag will be executed before coordinates updating
+      // @chart - ChartJS instance
+      // @points - Object , of points {x, y} for each dataset, witch will update their coordinates
+      //   points = {
+      //     datasetIndex: {
+      //       elementIndex: {
+      //         x // optional, not present if not modified
+      //         y // optional, not present if not modified
+      //       }
+      //     }
+      //   }
+      //   You can set new values (add, remove, ...) for points
       onDrag(chart, points) {
         if (Math.random() < 0.5) {
           return false;

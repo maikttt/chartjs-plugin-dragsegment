@@ -1,6 +1,6 @@
 {
   "name": "chartjs-plugin-dragsegment",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Draggable segments for Line charts created by Chart.js",
   "main": "src/plugin.js",
   "scripts": {

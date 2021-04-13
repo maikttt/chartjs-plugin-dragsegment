@@ -2,6 +2,7 @@ import {drag} from 'd3-drag';
 import {select} from 'd3-selection';
 
 let datasetSegments = null;
+let datasetPoints = null;
 let eventsQueue = [];
 
 function isXBetween(x, a, b, strict = false) {
@@ -24,7 +25,15 @@ function eventsQueueVerticalDir() {
   return prevEvent.y - lastEvent.y;
 }
 
-function moveElement(chartInstance, datasetIndex, elementIndex) {
+function eventsQueueHorizontalDir() {
+  if (eventsQueue.length < 2) {
+    return 0;
+  }
+  const [lastEvent, prevEvent] = eventsQueue;
+  return prevEvent.x - lastEvent.x;
+}
+
+function moveElementY(chartInstance, datasetIndex, elementIndex) {
   const element = chartInstance.getDatasetMeta(datasetIndex).data[elementIndex];
   // const scaleName = chartInstance.config.type === 'radar' ? '_scale' : '_yScale';
   const scaleName = '_yScale'; // chartInstance is allways type 'line'
@@ -40,57 +49,121 @@ function moveElement(chartInstance, datasetIndex, elementIndex) {
   return chartInstance.data.datasets[datasetIndex].data[elementIndex].y + chartStep;
 }
 
-function calcData(chartInstance, datasetSegments) {
+function moveElementX(chartInstance, datasetIndex, elementIndex) {
+  const element = chartInstance.getDatasetMeta(datasetIndex).data[elementIndex];
+  const scaleName = element._xScale.id;
+  const chartScale = chartInstance.scales[scaleName];
+  const mouseStep = eventsQueueHorizontalDir();
+  const chartStep = chartScale.getValueForPixel(
+    chartScale.getPixelForValue(0) - mouseStep
+  );
+  return chartInstance.data.datasets[datasetIndex].data[elementIndex].x + chartStep;
+}
+
+function calcData(chartInstance, datasetSegments, datasetPoints) {
   const data = {};
-  datasetSegments.forEach((segments, dsi) => {
-    const d = {};
-    segments.forEach(([pi, qi]) => {
-      d[pi] = moveElement(chartInstance, dsi, pi);
-      d[qi] = moveElement(chartInstance, dsi, qi);
+
+  if (datasetSegments.length) {
+    datasetSegments.forEach((segments, dsi) => {
+      const d = {};
+      segments.forEach(([pi, qi]) => {
+        d[pi] = {
+          y: moveElementY(chartInstance, dsi, pi)
+        };
+        d[qi] = {
+          y: moveElementY(chartInstance, dsi, qi)
+        };
+      });
+      data[dsi] = d;
     });
-    data[dsi] = d;
-  });
+  }
+
+  if (datasetPoints) {
+    datasetPoints.forEach((points, dsi) => {
+      if (!data[dsi]) {
+        data[dsi] = {}
+      }
+      points.map((pi) => {
+        const x = moveElementX(chartInstance, dsi, pi);
+        if (x !== undefined) {
+          if (!data[dsi][pi]) {
+            data[dsi][pi] = {};
+          }
+          data[dsi][pi].x = x;
+        }
+      })
+    });
+  }
+
   return data;
 }
 
-function dragSegmentStart(chartInstance) {
+function calcSegmentsToMoveVertical(chartInstance, event) {
+  datasetSegments = [];
+  chartInstance._getSortedVisibleDatasetMetas()
+  .map(dataset => {
+    const diSegments = [];
+    for (let i = 1; i < dataset.data.length; i++) {
+      const prev = dataset.data[i - 1]._view;
+      const curr = dataset.data[i]._view;
+      if (isXBetween(event.x, prev.x, curr.x)) {
+        diSegments.push([i - 1, i]);
+      }
+    }
+    datasetSegments.push(diSegments);
+  });
+}
+
+function calcPointsToMoveHorizontal(chartInstance, event) {
+  datasetPoints = [];
+  chartInstance._getSortedVisibleDatasetMetas()
+  .map((dataset) => {
+    const points = [];
+    for (let i = 0; i < dataset.data.length; i++) {
+      if (event.x <= dataset.data[i]._view.x) {
+        points.push(i);
+      }
+    }
+    datasetPoints.push(points);
+  });
+}
+
+function dragSegmentStart(chartInstance, vertical, horizontal) {
   return (event) => {
     eventInQueue(event);
-    datasetSegments = [];
-    chartInstance._getSortedVisibleDatasetMetas()
-    .map(dataset => {
-      const diSegments = [];
-      for (let i = 1; i < dataset.data.length; i++) {
-        const prev = dataset.data[i - 1]._view;
-        const curr = dataset.data[i]._view;
-        if (isXBetween(event.x, prev.x, curr.x)) {
-          diSegments.push([i - 1, i]);
-        }
-      }
-      datasetSegments.push(diSegments);
-    });
+    if (vertical) {
+      calcSegmentsToMoveVertical(chartInstance, event);
+    }
+    if (horizontal) {
+      calcPointsToMoveHorizontal(chartInstance, event);
+    }
   }
 }
 
 function dragSegmentDrag(chartInstance, callback) {
   return (event) => {
     eventInQueue(event);
-    if (datasetSegments.length) {
-      let data = calcData(chartInstance, datasetSegments);
-      let update = true;
+    if (datasetSegments.length || datasetPoints.length) {
+      let toUpdate = true;
+      let data = calcData(chartInstance, datasetSegments, datasetPoints);
 
       if (typeof callback == 'function') {
-        update = callback(chartInstance, data);
-        if (update === undefined) {
-          update = true;
+        toUpdate = callback(chartInstance, data);
+        if (toUpdate === undefined) {
+          toUpdate = true;
         }
       }
 
-      if (update) {
+      if (toUpdate) {
         Object.keys(data).forEach((dsi) => {
-          const segments = data[dsi];
-          Object.keys(segments).forEach((i) => {
-            chartInstance.data.datasets[dsi].data[i].y = segments[i];
+          const points = data[dsi];
+          Object.keys(points).forEach((i) => {
+            if (points[i].y !== undefined) {
+              chartInstance.data.datasets[dsi].data[i].y = points[i].y;
+            }
+            if (points[i].x !== undefined) {
+              chartInstance.data.datasets[dsi].data[i].x = points[i].x;
+            }
           })
         });
         chartInstance.update(0);
@@ -103,6 +176,7 @@ function dragSegmentEnd(chartInstance) {
   return () => {
     datasetSegments = null;
     eventsQueue = [];
+    datasetPoints = [];
   }
 }
 
@@ -110,10 +184,15 @@ const ChartJSdragSegment = {
   id: 'dragSegment',
   afterInit(chartInstance) {
     if (chartInstance.config.type == 'line' && chartInstance.options.dragSegment) {
+      const options = Object.assign({
+        vertical: true,
+        horizontal: false,
+      }, chartInstance.options.dragSegment);
+
       select(chartInstance.chart.canvas).call(
         drag().container(chartInstance.chart.canvas)
-          .on('start', dragSegmentStart(chartInstance))
-          .on('drag', dragSegmentDrag(chartInstance, chartInstance.options.dragSegment.onDrag))
+          .on('start', dragSegmentStart(chartInstance, options.vertical, options.horizontal))
+          .on('drag', dragSegmentDrag(chartInstance, options.onDrag))
           .on('end', dragSegmentEnd(chartInstance))
       );
     }
